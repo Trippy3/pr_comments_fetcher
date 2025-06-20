@@ -172,6 +172,72 @@ class TestBulkReviewCommentsFetcher:
                 os.unlink(temp_filename)
 
     @patch("make_rule.bulk_review_comments_fetcher.GitHubReviewCommentsFetcher")
+    def test_export_to_csv_with_none_comments(
+        self, mock_fetcher_class, mock_github_token
+    ):
+        """Test exporting data to CSV with None comments (should be skipped)"""
+        mock_fetcher = Mock()
+        mock_fetcher_class.return_value = mock_fetcher
+
+        bulk_fetcher = BulkReviewCommentsFetcher(mock_github_token)
+
+        # Create test data with None comments
+        test_data = {
+            123: {
+                "pull_request": {
+                    "title": "Test PR",
+                    "state": "open",
+                    "user": {"login": "author"},
+                },
+                "reviews": [],
+                "review_comments": [
+                    {
+                        "id": 1,
+                        "user": {"login": "reviewer"},
+                        "body": "Valid comment",
+                        "path": "test.py",
+                        "line": 10,
+                        "created_at": "2024-01-01T00:00:00Z",
+                        "updated_at": "2024-01-01T00:00:00Z",
+                        "in_reply_to_id": None,
+                    },
+                    None,  # This should be skipped
+                    {
+                        "id": 2,
+                        "user": {"login": "reviewer2"},
+                        "body": "Another valid comment",
+                        "path": "test2.py",
+                        "line": 20,
+                        "created_at": "2024-01-01T01:00:00Z",
+                        "updated_at": "2024-01-01T01:00:00Z",
+                        "in_reply_to_id": None,
+                    },
+                ],
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv") as f:
+            temp_filename = f.name
+
+        try:
+            # This should not raise an AttributeError
+            bulk_fetcher.export_to_csv(test_data, temp_filename)
+
+            # Read back and verify only valid comments are included
+            with open(temp_filename, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+
+            # Should only have 2 rows (None comment skipped)
+            assert len(rows) == 2
+            assert rows[0]["comment_body"] == "Valid comment"
+            assert rows[1]["comment_body"] == "Another valid comment"
+
+        finally:
+            if os.path.exists(temp_filename):
+                os.unlink(temp_filename)
+
+    @patch("make_rule.bulk_review_comments_fetcher.GitHubReviewCommentsFetcher")
     def test_generate_summary_report(self, mock_fetcher_class, mock_github_token):
         """Test generating summary report"""
         mock_fetcher = Mock()
@@ -216,6 +282,146 @@ class TestBulkReviewCommentsFetcher:
         assert summary["top_reviewers"]["reviewer1"] == 2
         assert summary["top_commenters"]["commenter1"] == 2
         assert summary["files_with_most_comments"]["file1.py"] == 3
+
+    @patch("make_rule.bulk_review_comments_fetcher.GitHubReviewCommentsFetcher")
+    def test_generate_summary_report_with_none_comments(
+        self, mock_fetcher_class, mock_github_token
+    ):
+        """Test generating summary report with None comments (should be skipped)"""
+        mock_fetcher = Mock()
+        mock_fetcher_class.return_value = mock_fetcher
+
+        bulk_fetcher = BulkReviewCommentsFetcher(mock_github_token)
+
+        # Create test data with None comments and reviews
+        test_data = {
+            1: {
+                "pull_request": {"state": "open"},
+                "reviews": [
+                    {"state": "APPROVED", "user": {"login": "reviewer1"}},
+                    None,  # This should be skipped
+                    {"state": "CHANGES_REQUESTED", "user": {"login": "reviewer2"}},
+                ],
+                "review_comments": [
+                    {"user": {"login": "commenter1"}, "path": "file1.py"},
+                    None,  # This should be skipped
+                    {"user": {"login": "commenter2"}, "path": "file2.py"},
+                    None,  # This should be skipped
+                ],
+            },
+        }
+
+        # This should not raise an AttributeError
+        summary = bulk_fetcher.generate_summary_report(test_data)
+
+        assert summary["total_prs"] == 1
+        assert summary["total_reviews"] == 3  # Counts all including None
+        assert summary["total_comments"] == 4  # Counts all including None
+        assert summary["pr_states"]["open"] == 1
+        assert summary["review_states"]["APPROVED"] == 1
+        assert summary["review_states"]["CHANGES_REQUESTED"] == 1
+        assert summary["top_reviewers"]["reviewer1"] == 1
+        assert summary["top_reviewers"]["reviewer2"] == 1
+        assert summary["top_commenters"]["commenter1"] == 1
+        assert summary["top_commenters"]["commenter2"] == 1
+        assert summary["files_with_most_comments"]["file1.py"] == 1
+        assert summary["files_with_most_comments"]["file2.py"] == 1
+
+    @patch("make_rule.bulk_review_comments_fetcher.GitHubReviewCommentsFetcher")
+    def test_generate_summary_report_with_none_user_fields(
+        self, mock_fetcher_class, mock_github_token
+    ):
+        """Test generating summary report with None user fields (should handle gracefully)"""
+        mock_fetcher = Mock()
+        mock_fetcher_class.return_value = mock_fetcher
+
+        bulk_fetcher = BulkReviewCommentsFetcher(mock_github_token)
+
+        # Create test data with None user fields
+        test_data = {
+            1: {
+                "pull_request": {"state": "open"},
+                "reviews": [
+                    {"state": "APPROVED", "user": None},  # None user field
+                    {"state": "CHANGES_REQUESTED", "user": {"login": "reviewer2"}},
+                ],
+                "review_comments": [
+                    {"user": None, "path": "file1.py"},  # None user field
+                    {"user": {"login": "commenter2"}, "path": "file2.py"},
+                ],
+            },
+        }
+
+        # This should not raise an AttributeError
+        summary = bulk_fetcher.generate_summary_report(test_data)
+
+        assert summary["total_prs"] == 1
+        assert summary["total_reviews"] == 2
+        assert summary["total_comments"] == 2
+        assert summary["pr_states"]["open"] == 1
+        assert summary["review_states"]["APPROVED"] == 1
+        assert summary["review_states"]["CHANGES_REQUESTED"] == 1
+        assert summary["top_reviewers"]["unknown"] == 1  # None user becomes "unknown"
+        assert summary["top_reviewers"]["reviewer2"] == 1
+        assert summary["top_commenters"]["unknown"] == 1  # None user becomes "unknown"
+        assert summary["top_commenters"]["commenter2"] == 1
+        assert summary["files_with_most_comments"]["file1.py"] == 1
+        assert summary["files_with_most_comments"]["file2.py"] == 1
+
+    @patch("make_rule.bulk_review_comments_fetcher.GitHubReviewCommentsFetcher")
+    def test_export_to_csv_with_none_user_fields(
+        self, mock_fetcher_class, mock_github_token
+    ):
+        """Test exporting data to CSV with None user fields (should handle gracefully)"""
+        mock_fetcher = Mock()
+        mock_fetcher_class.return_value = mock_fetcher
+
+        bulk_fetcher = BulkReviewCommentsFetcher(mock_github_token)
+
+        # Create test data with None user fields
+        test_data = {
+            123: {
+                "pull_request": {
+                    "title": "Test PR",
+                    "state": "open",
+                    "user": None,  # None user field
+                },
+                "reviews": [],
+                "review_comments": [
+                    {
+                        "id": 1,
+                        "user": None,  # None user field
+                        "body": "Test comment",
+                        "path": "test.py",
+                        "line": 10,
+                        "created_at": "2024-01-01T00:00:00Z",
+                        "updated_at": "2024-01-01T00:00:00Z",
+                        "in_reply_to_id": None,
+                    },
+                ],
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv") as f:
+            temp_filename = f.name
+
+        try:
+            # This should not raise an AttributeError
+            bulk_fetcher.export_to_csv(test_data, temp_filename)
+
+            # Read back and verify
+            with open(temp_filename, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+
+            assert len(rows) == 1
+            assert rows[0]["pr_author"] == "unknown"  # None user becomes "unknown"
+            assert rows[0]["comment_author"] == "unknown"  # None user becomes "unknown"
+            assert rows[0]["comment_body"] == "Test comment"
+
+        finally:
+            if os.path.exists(temp_filename):
+                os.unlink(temp_filename)
 
 
 class TestMainFunction:

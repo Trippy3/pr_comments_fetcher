@@ -231,7 +231,7 @@ class TestMainFunction:
         mock_fetcher.get_pull_request_reviews.return_value = mock_reviews
         mock_fetcher.get_review_comments.return_value = mock_review_comments
         mock_fetcher.get_issue_comments.return_value = []
-        
+
         # Mock format methods to return formatted data
         mock_fetcher.format_comment_info.side_effect = lambda comment: {
             **comment,
@@ -263,7 +263,7 @@ class TestMainFunction:
         mock_fetcher.get_pull_request_reviews.return_value = mock_reviews
         mock_fetcher.get_review_comments.return_value = mock_review_comments
         mock_fetcher.get_issue_comments.return_value = []
-        
+
         # Mock format methods to return formatted data
         mock_fetcher.format_comment_info.side_effect = lambda comment: {
             **comment,
@@ -313,7 +313,7 @@ class TestMainFunction:
         mock_fetcher.get_pull_request_reviews.return_value = mock_reviews
         mock_fetcher.get_review_comments.return_value = mock_review_comments
         mock_fetcher.get_issue_comments.return_value = []
-        
+
         # Mock format methods to return formatted data
         mock_fetcher.format_comment_info.side_effect = lambda comment: {
             **comment,

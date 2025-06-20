@@ -92,14 +92,20 @@ class BulkReviewCommentsFetcher:
 
             # レビューコメントの処理
             for comment in pr_data["review_comments"]:
+                if comment is None:
+                    continue
                 rows.append(
                     {
                         "pr_number": pr_number,
                         "pr_title": pr_info.get("title"),
                         "pr_state": pr_info.get("state"),
-                        "pr_author": pr_info.get("user", {}).get("login"),
+                        "pr_author": pr_info.get("user", {}).get("login")
+                        if pr_info.get("user")
+                        else "unknown",
                         "comment_id": comment.get("id"),
-                        "comment_author": comment.get("user", {}).get("login"),
+                        "comment_author": comment.get("user", {}).get("login")
+                        if comment.get("user")
+                        else "unknown",
                         "comment_body": comment.get("body"),
                         "file_path": comment.get("path"),
                         "line_number": comment.get("line"),
@@ -151,6 +157,8 @@ class BulkReviewCommentsFetcher:
             # レビューの集計
             summary["total_reviews"] += len(pr_data["reviews"])
             for review in pr_data["reviews"]:
+                if review is None:
+                    continue
                 # レビュー状態
                 review_state = review.get("state", "UNKNOWN")
                 summary["review_states"][review_state] = (
@@ -158,7 +166,11 @@ class BulkReviewCommentsFetcher:
                 )
 
                 # レビュアー
-                reviewer = review.get("user", {}).get("login", "unknown")
+                user_info = review.get("user")
+                if user_info is None:
+                    reviewer = "unknown"
+                else:
+                    reviewer = user_info.get("login", "unknown")
                 summary["top_reviewers"][reviewer] = (
                     summary["top_reviewers"].get(reviewer, 0) + 1
                 )
@@ -166,8 +178,14 @@ class BulkReviewCommentsFetcher:
             # コメントの集計
             summary["total_comments"] += len(pr_data["review_comments"])
             for comment in pr_data["review_comments"]:
+                if comment is None:
+                    continue
                 # コメンター
-                commenter = comment.get("user", {}).get("login", "unknown")
+                user_info = comment.get("user")
+                if user_info is None:
+                    commenter = "unknown"
+                else:
+                    commenter = user_info.get("login", "unknown")
                 summary["top_commenters"][commenter] = (
                     summary["top_commenters"].get(commenter, 0) + 1
                 )

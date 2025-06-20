@@ -300,17 +300,18 @@ def main():
     formatted_issue_comments = [
         fetcher.format_issue_comment_info(comment) for comment in issue_comments
     ]
-    
+
     # 全てのコメントを統合
     all_comments = formatted_review_comments + formatted_issue_comments
-    
+
     # スレッド構造の分析: 親コメント以外（返信コメント）をフィルタリング
     # review_commentsで in_reply_to_id が設定されているものが返信コメント
     reply_comments = [
-        comment for comment in formatted_review_comments
+        comment
+        for comment in formatted_review_comments
         if comment.get("in_reply_to_id") is not None
     ]
-    
+
     # issue_commentsは基本的に独立したコメントなので、すべて含める
     # ユーザーの要求「親コメント以外」に従って、返信コメント + issue_comments を取得
     target_comments = reply_comments + formatted_issue_comments
@@ -367,10 +368,12 @@ def main():
     print("\nReview States:")
     for state, count in result["summary"]["review_states"].items():
         print(f"  {state}: {count}")
-    
+
     print("\nTarget comments body preview:")
     for i, comment in enumerate(target_comments[:3]):  # 最初の3件のみ表示
-        print(f"  {i+1}. [{comment['type']}] {comment['user']}: {comment['body'][:100]}...")
+        print(
+            f"  {i + 1}. [{comment['type']}] {comment['user']}: {comment['body'][:100]}..."
+        )
     if len(target_comments) > 3:
         print(f"  ... and {len(target_comments) - 3} more comments")
 
