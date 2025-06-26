@@ -423,6 +423,151 @@ class TestBulkReviewCommentsFetcher:
             if os.path.exists(temp_filename):
                 os.unlink(temp_filename)
 
+    @patch("make_rule.bulk_review_comments_fetcher.GitHubReviewCommentsFetcher")
+    def test_export_to_markdown(self, mock_fetcher_class, mock_github_token):
+        """Test exporting data to Markdown"""
+        mock_fetcher = Mock()
+        mock_fetcher_class.return_value = mock_fetcher
+
+        bulk_fetcher = BulkReviewCommentsFetcher(mock_github_token)
+
+        # Create test data
+        test_data = {
+            123: {
+                "pull_request": {
+                    "title": "Test PR",
+                    "state": "open",
+                    "user": {"login": "author"},
+                },
+                "reviews": [],
+                "review_comments": [
+                    {
+                        "id": 1,
+                        "user": {"login": "reviewer"},
+                        "body": "Test comment",
+                        "path": "test.py",
+                        "line": 10,
+                        "created_at": "2024-01-01T00:00:00Z",
+                        "updated_at": "2024-01-01T00:00:00Z",
+                        "in_reply_to_id": None,
+                    },
+                    {
+                        "id": 2,
+                        "user": {"login": "reviewer2"},
+                        "body": "Comment with | pipe and\nmultiline",
+                        "path": "test2.py",
+                        "line": 20,
+                        "created_at": "2024-01-01T01:00:00Z",
+                        "updated_at": "2024-01-01T01:00:00Z",
+                        "in_reply_to_id": None,
+                    },
+                ],
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
+            temp_filename = f.name
+
+        try:
+            bulk_fetcher.export_to_markdown(test_data, temp_filename)
+
+            # Read back and verify
+            with open(temp_filename, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            assert "| PR Number | Comment Body | File Path |" in content
+            assert "|-----------|--------------|----------|" in content
+            assert "| 123 | Test comment | test.py |" in content
+            assert "| 123 | Comment with \\| pipe and<br>multiline | test2.py |" in content
+        finally:
+            if os.path.exists(temp_filename):
+                os.unlink(temp_filename)
+
+    @patch("make_rule.bulk_review_comments_fetcher.GitHubReviewCommentsFetcher")
+    def test_export_to_markdown_with_none_comments(
+        self, mock_fetcher_class, mock_github_token
+    ):
+        """Test exporting data to Markdown with None comments (should be skipped)"""
+        mock_fetcher = Mock()
+        mock_fetcher_class.return_value = mock_fetcher
+
+        bulk_fetcher = BulkReviewCommentsFetcher(mock_github_token)
+
+        # Create test data with None comments
+        test_data = {
+            123: {
+                "pull_request": {
+                    "title": "Test PR",
+                    "state": "open",
+                    "user": {"login": "author"},
+                },
+                "reviews": [],
+                "review_comments": [
+                    {
+                        "id": 1,
+                        "user": {"login": "reviewer"},
+                        "body": "Valid comment",
+                        "path": "test.py",
+                        "line": 10,
+                        "created_at": "2024-01-01T00:00:00Z",
+                        "updated_at": "2024-01-01T00:00:00Z",
+                        "in_reply_to_id": None,
+                    },
+                    None,  # This should be skipped
+                ],
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
+            temp_filename = f.name
+
+        try:
+            # This should not raise an AttributeError
+            bulk_fetcher.export_to_markdown(test_data, temp_filename)
+
+            # Read back and verify only valid comments are included
+            with open(temp_filename, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # Should only have 1 data row (None comment skipped)
+            lines = content.strip().split('\n')
+            data_lines = [line for line in lines if line.startswith('| 123')]
+            assert len(data_lines) == 1
+            assert "Valid comment" in content
+
+        finally:
+            if os.path.exists(temp_filename):
+                os.unlink(temp_filename)
+
+    @patch("make_rule.bulk_review_comments_fetcher.GitHubReviewCommentsFetcher")
+    def test_export_to_markdown_empty_data(
+        self, mock_fetcher_class, mock_github_token, capsys
+    ):
+        """Test exporting empty data to Markdown"""
+        mock_fetcher = Mock()
+        mock_fetcher_class.return_value = mock_fetcher
+
+        bulk_fetcher = BulkReviewCommentsFetcher(mock_github_token)
+
+        # Create test data with no comments
+        test_data = {}
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".md") as f:
+            temp_filename = f.name
+
+        try:
+            bulk_fetcher.export_to_markdown(test_data, temp_filename)
+
+            captured = capsys.readouterr()
+            assert "No data to export" in captured.out
+
+            # File should not be created or should be empty
+            assert not os.path.exists(temp_filename) or os.path.getsize(temp_filename) == 0
+
+        finally:
+            if os.path.exists(temp_filename):
+                os.unlink(temp_filename)
+
 
 class TestMainFunction:
     """Test cases for the bulk fetcher main function"""
@@ -527,6 +672,36 @@ class TestMainFunction:
 
         mock_bulk_fetcher.export_to_csv.assert_called_once_with(
             {"test": "data"}, "output.csv"
+        )
+
+    @patch(
+        "sys.argv",
+        [
+            "prog",
+            "owner",
+            "repo",
+            "1-3",
+            "--token",
+            "test_token",
+            "--output-md",
+            "output.md",
+        ],
+    )
+    @patch("make_rule.bulk_review_comments_fetcher.BulkReviewCommentsFetcher")
+    @patch("builtins.open", create=True)
+    @patch("json.dump")
+    def test_main_with_markdown_output(
+        self, mock_json_dump, mock_open, mock_bulk_fetcher_class
+    ):
+        """Test main function with Markdown output option"""
+        mock_bulk_fetcher = Mock()
+        mock_bulk_fetcher_class.return_value = mock_bulk_fetcher
+        mock_bulk_fetcher.fetch_multiple_prs.return_value = {"test": "data"}
+
+        main()
+
+        mock_bulk_fetcher.export_to_markdown.assert_called_once_with(
+            {"test": "data"}, "output.md"
         )
 
     @patch(

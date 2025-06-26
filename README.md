@@ -84,6 +84,7 @@ uv run github-review-fetcher [owner] [repo] [pr_number]
 - `--token`: GitHub Personal Access Token
 - `--output-json`: JSON出力ファイル名（デフォルト: bulk_review_comments.json）
 - `--output-csv`: CSV出力ファイル名（オプション）
+- `--output-md`: Markdown出力ファイル名（オプション）
 - `--delay`: リクエスト間の遅延（秒、デフォルト: 1.0）
 - `--summary`: サマリーレポートを表示
 
@@ -102,7 +103,10 @@ uv run bulk-review-fetcher facebook react "30000-30010" --summary
 # 例4: CSV出力付きで複数のPRを取得
 uv run bulk-review-fetcher microsoft vscode "1,5,10-15" --output-csv comments.csv
 
-# 例5: 環境変数を使用
+# 例5: Markdown出力付きで複数のPRを取得
+uv run bulk-review-fetcher microsoft vscode "1,5,10-15" --output-md comments.md
+
+# 例6: 環境変数を使用
 export GITHUB_TOKEN="ghp_xxxxxxxxxxxxx"
 uv run bulk-review-fetcher torvalds linux "100-110" --summary
 ```
@@ -231,6 +235,26 @@ CSV形式では以下のカラムが出力されます：
 - created_at
 - updated_at
 - in_reply_to
+
+### Markdown出力（bulk-review-fetcherのみ）
+
+Markdown形式では以下の3つのカラムのみテーブル形式で出力されます：
+
+- pr_number: プルリクエスト番号
+- comment_body: コメント内容
+- file_path: ファイルパス
+
+出力例：
+```markdown
+| PR Number | Comment Body | File Path |
+|-----------|--------------|-----------|
+| 123 | コメント内容です | src/main.py |
+| 124 | 別のコメント | src/utils.py |
+```
+
+注意点：
+- Markdownテーブル内のパイプ文字（`|`）は自動的にエスケープされます
+- 改行文字は`<br>`タグに変換されます
 
 ## 注意事項
 

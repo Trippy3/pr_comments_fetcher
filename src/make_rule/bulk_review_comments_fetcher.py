@@ -126,6 +126,43 @@ class BulkReviewCommentsFetcher:
         else:
             print("\nNo data to export")
 
+    def export_to_markdown(self, data: Dict[int, Dict], filename: str):
+        """
+        データをMarkdownファイルにエクスポート
+
+        Args:
+            data: プルリクエストデータ
+            filename: 出力ファイル名
+        """
+        rows = []
+
+        for pr_number, pr_data in data.items():
+            # レビューコメントの処理
+            for comment in pr_data["review_comments"]:
+                if comment is None:
+                    continue
+                rows.append(
+                    {
+                        "pr_number": pr_number,
+                        "comment_body": comment.get("body"),
+                        "file_path": comment.get("path"),
+                    }
+                )
+
+        # Markdownファイルに書き込み
+        if rows:
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write("| PR Number | Comment Body | File Path |\n")
+                f.write("|-----------|--------------|----------|\n")
+                for row in rows:
+                    # Markdownテーブル用にパイプをエスケープ
+                    comment_body = (row["comment_body"] or "").replace("|", "\\|").replace("\n", "<br>")
+                    file_path = (row["file_path"] or "").replace("|", "\\|")
+                    f.write(f"| {row['pr_number']} | {comment_body} | {file_path} |\n")
+            print(f"\nData exported to {filename}")
+        else:
+            print("\nNo data to export")
+
     def generate_summary_report(self, data: Dict[int, Dict]) -> Dict:
         """
         サマリーレポートを生成
@@ -261,6 +298,7 @@ def main():
         "--output-json", default="bulk_review_comments.json", help="JSON出力ファイル名"
     )
     parser.add_argument("--output-csv", help="CSV出力ファイル名（オプション）")
+    parser.add_argument("--output-md", help="Markdown出力ファイル名（オプション）")
     parser.add_argument(
         "--delay", type=float, default=1.0, help="リクエスト間の遅延（秒）"
     )
@@ -309,6 +347,10 @@ def main():
     # CSVファイルに保存（オプション）
     if args.output_csv:
         bulk_fetcher.export_to_csv(data, args.output_csv)
+
+    # Markdownファイルに保存（オプション）
+    if args.output_md:
+        bulk_fetcher.export_to_markdown(data, args.output_md)
 
     # サマリーレポートの表示（オプション）
     if args.summary:

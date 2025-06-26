@@ -49,6 +49,7 @@ Thumbs.db
 *.json
 *.csv
 !pyproject.toml
+comments*.md
 
 # Secrets
 .env
