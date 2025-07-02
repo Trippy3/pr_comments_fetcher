@@ -42,10 +42,17 @@ class TestGitHubReviewCommentsFetcher:
 
     @responses.activate
     def test_get_pull_request_info_failure(self, mock_github_token, capsys):
-        """Test PR info retrieval failure"""
+        """Test PR info retrieval failure when PR not found"""
         responses.add(
             responses.GET,
             "https://api.github.com/repos/test_owner/test_repo/pulls/123",
+            json={"message": "Not Found"},
+            status=404,
+        )
+        # Mock the issue check to return False (not an issue)
+        responses.add(
+            responses.GET,
+            "https://api.github.com/repos/test_owner/test_repo/issues/123",
             json={"message": "Not Found"},
             status=404,
         )
@@ -55,7 +62,98 @@ class TestGitHubReviewCommentsFetcher:
 
         assert result is None
         captured = capsys.readouterr()
-        assert "Error fetching PR info: 404" in captured.out
+        assert "Error: Pull request #123 not found." in captured.out
+
+    @responses.activate
+    def test_get_pull_request_info_is_issue(self, mock_github_token, capsys):
+        """Test PR info retrieval when number refers to an issue"""
+        # Mock PR request returning 404
+        responses.add(
+            responses.GET,
+            "https://api.github.com/repos/test_owner/test_repo/pulls/123",
+            json={"message": "Not Found"},
+            status=404,
+        )
+        # Mock issue request returning an issue (no pull_request field)
+        responses.add(
+            responses.GET,
+            "https://api.github.com/repos/test_owner/test_repo/issues/123",
+            json={
+                "id": 123,
+                "number": 123,
+                "title": "Test Issue",
+                "state": "open",
+                # No pull_request field indicates this is an issue
+            },
+            status=200,
+        )
+
+        fetcher = GitHubReviewCommentsFetcher(mock_github_token)
+        result = fetcher.get_pull_request_info("test_owner", "test_repo", 123)
+
+        assert result is None
+        captured = capsys.readouterr()
+        assert "Note: #123 is an issue, not a pull request. Skipping..." in captured.out
+        assert "This tool is designed to fetch pull request comments only." in captured.out
+
+    @responses.activate
+    def test_check_if_issue_true(self, mock_github_token):
+        """Test check_if_issue returns True for actual issue"""
+        responses.add(
+            responses.GET,
+            "https://api.github.com/repos/test_owner/test_repo/issues/123",
+            json={
+                "id": 123,
+                "number": 123,
+                "title": "Test Issue",
+                "state": "open",
+                # No pull_request field
+            },
+            status=200,
+        )
+
+        fetcher = GitHubReviewCommentsFetcher(mock_github_token)
+        result = fetcher.check_if_issue("test_owner", "test_repo", 123)
+
+        assert result is True
+
+    @responses.activate
+    def test_check_if_issue_false_for_pr(self, mock_github_token):
+        """Test check_if_issue returns False for pull request"""
+        responses.add(
+            responses.GET,
+            "https://api.github.com/repos/test_owner/test_repo/issues/123",
+            json={
+                "id": 123,
+                "number": 123,
+                "title": "Test PR",
+                "state": "open",
+                "pull_request": {  # This field indicates it's a PR
+                    "url": "https://api.github.com/repos/test_owner/test_repo/pulls/123"
+                }
+            },
+            status=200,
+        )
+
+        fetcher = GitHubReviewCommentsFetcher(mock_github_token)
+        result = fetcher.check_if_issue("test_owner", "test_repo", 123)
+
+        assert result is False
+
+    @responses.activate
+    def test_check_if_issue_false_for_not_found(self, mock_github_token):
+        """Test check_if_issue returns False when issue not found"""
+        responses.add(
+            responses.GET,
+            "https://api.github.com/repos/test_owner/test_repo/issues/123",
+            json={"message": "Not Found"},
+            status=404,
+        )
+
+        fetcher = GitHubReviewCommentsFetcher(mock_github_token)
+        result = fetcher.check_if_issue("test_owner", "test_repo", 123)
+
+        assert result is False
 
     @responses.activate
     def test_get_pull_request_reviews(self, mock_github_token, mock_reviews):
