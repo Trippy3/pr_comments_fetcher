@@ -138,6 +138,28 @@ class GitHubReviewCommentsFetcher:
 
         return comments
 
+    def check_if_issue(self, owner: str, repo: str, number: int) -> bool:
+        """
+        指定された番号がissueかどうかをチェック
+
+        Args:
+            owner: リポジトリオーナー
+            repo: リポジトリ名
+            number: チェックする番号
+
+        Returns:
+            issueの場合True、そうでなければFalse
+        """
+        url = f"{self.base_url}/repos/{owner}/{repo}/issues/{number}"
+        response = requests.get(url, headers=self.headers)
+
+        if response.status_code == 200:
+            issue_data = response.json()
+            # pull_requestフィールドがない場合はissue
+            return "pull_request" not in issue_data
+
+        return False
+
     def get_pull_request_info(
         self, owner: str, repo: str, pr_number: int
     ) -> Optional[Dict]:
@@ -157,9 +179,21 @@ class GitHubReviewCommentsFetcher:
         response = requests.get(url, headers=self.headers)
 
         if response.status_code != 200:
-            print(f"Error fetching PR info: {response.status_code}")
-            print(response.json())
-            return None
+            # 404エラーの場合、issueかどうかチェック
+            if response.status_code == 404:
+                if self.check_if_issue(owner, repo, pr_number):
+                    print(
+                        f"Note: #{pr_number} is an issue, not a pull request. Skipping..."
+                    )
+                    print("This tool is designed to fetch pull request comments only.")
+                    return None
+                else:
+                    print(f"Error: Pull request #{pr_number} not found.")
+                    return None
+            else:
+                print(f"Error fetching PR info: {response.status_code}")
+                print(response.json())
+                return None
 
         return response.json()
 

@@ -156,7 +156,11 @@ class BulkReviewCommentsFetcher:
                 f.write("|-----------|--------------|----------|\n")
                 for row in rows:
                     # Markdownテーブル用にパイプをエスケープ
-                    comment_body = (row["comment_body"] or "").replace("|", "\\|").replace("\n", "<br>")
+                    comment_body = (
+                        (row["comment_body"] or "")
+                        .replace("|", "\\|")
+                        .replace("\n", "<br>")
+                    )
                     file_path = (row["file_path"] or "").replace("|", "\\|")
                     f.write(f"| {row['pr_number']} | {comment_body} | {file_path} |\n")
             print(f"\nData exported to {filename}")
