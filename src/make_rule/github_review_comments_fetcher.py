@@ -152,12 +152,12 @@ class GitHubReviewCommentsFetcher:
         """
         url = f"{self.base_url}/repos/{owner}/{repo}/issues/{number}"
         response = requests.get(url, headers=self.headers)
-        
+
         if response.status_code == 200:
             issue_data = response.json()
             # pull_requestフィールドがない場合はissue
             return "pull_request" not in issue_data
-        
+
         return False
 
     def get_pull_request_info(
@@ -182,7 +182,9 @@ class GitHubReviewCommentsFetcher:
             # 404エラーの場合、issueかどうかチェック
             if response.status_code == 404:
                 if self.check_if_issue(owner, repo, pr_number):
-                    print(f"Note: #{pr_number} is an issue, not a pull request. Skipping...")
+                    print(
+                        f"Note: #{pr_number} is an issue, not a pull request. Skipping..."
+                    )
                     print("This tool is designed to fetch pull request comments only.")
                     return None
                 else:

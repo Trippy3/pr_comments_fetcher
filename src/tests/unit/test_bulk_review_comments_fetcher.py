@@ -478,7 +478,9 @@ class TestBulkReviewCommentsFetcher:
             assert "| PR Number | Comment Body | File Path |" in content
             assert "|-----------|--------------|----------|" in content
             assert "| 123 | Test comment | test.py |" in content
-            assert "| 123 | Comment with \\| pipe and<br>multiline | test2.py |" in content
+            assert (
+                "| 123 | Comment with \\| pipe and<br>multiline | test2.py |" in content
+            )
         finally:
             if os.path.exists(temp_filename):
                 os.unlink(temp_filename)
@@ -530,8 +532,8 @@ class TestBulkReviewCommentsFetcher:
                 content = f.read()
 
             # Should only have 1 data row (None comment skipped)
-            lines = content.strip().split('\n')
-            data_lines = [line for line in lines if line.startswith('| 123')]
+            lines = content.strip().split("\n")
+            data_lines = [line for line in lines if line.startswith("| 123")]
             assert len(data_lines) == 1
             assert "Valid comment" in content
 
@@ -562,7 +564,9 @@ class TestBulkReviewCommentsFetcher:
             assert "No data to export" in captured.out
 
             # File should not be created or should be empty
-            assert not os.path.exists(temp_filename) or os.path.getsize(temp_filename) == 0
+            assert (
+                not os.path.exists(temp_filename) or os.path.getsize(temp_filename) == 0
+            )
 
         finally:
             if os.path.exists(temp_filename):

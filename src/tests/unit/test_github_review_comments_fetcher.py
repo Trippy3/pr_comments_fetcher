@@ -94,7 +94,9 @@ class TestGitHubReviewCommentsFetcher:
         assert result is None
         captured = capsys.readouterr()
         assert "Note: #123 is an issue, not a pull request. Skipping..." in captured.out
-        assert "This tool is designed to fetch pull request comments only." in captured.out
+        assert (
+            "This tool is designed to fetch pull request comments only." in captured.out
+        )
 
     @responses.activate
     def test_check_if_issue_true(self, mock_github_token):
@@ -130,7 +132,7 @@ class TestGitHubReviewCommentsFetcher:
                 "state": "open",
                 "pull_request": {  # This field indicates it's a PR
                     "url": "https://api.github.com/repos/test_owner/test_repo/pulls/123"
-                }
+                },
             },
             status=200,
         )
